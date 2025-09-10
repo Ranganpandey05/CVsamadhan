@@ -158,24 +158,35 @@ const WorkerTabs = () => (
 
 // This is the main component that DECIDES which set of tabs to show
 export default function HomeLayout() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const router = useRouter();
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) {
-      router.replace('/');
+    console.log('Home layout effect - user:', !!user, 'session:', !!session);
+    
+    // Only proceed if we have a user or session
+    if (!user && !session) {
+      console.log('No user or session found, not rendering home layout');
       return;
     }
 
     const fetchProfile = async () => {
       setLoading(true);
       try {
+        const currentUser = user || session?.user;
+        if (!currentUser) {
+          console.log('No user or session available for profile fetch');
+          setUserRole('citizen');
+          setLoading(false);
+          return;
+        }
+
         const { data, error } = await supabase
           .from('profiles')
           .select('role')
-          .eq('id', user.id)
+          .eq('id', currentUser.id)
           .single();
 
         if (error) {
@@ -193,8 +204,14 @@ export default function HomeLayout() {
     };
 
     fetchProfile();
-  }, [user]);
+  }, [user, session]);
 
+  // Don't render anything if no user/session - let root layout handle redirect
+  if (!user && !session) {
+    return null;
+  }
+
+  // Show loading only while fetching profile
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>

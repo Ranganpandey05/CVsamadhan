@@ -34,10 +34,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     getSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
+        console.log('Auth state changed:', event, session ? 'Session exists' : 'No session');
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+        
+        // Force clear state on sign out
+        if (event === 'SIGNED_OUT') {
+          console.log('Force clearing auth state on sign out');
+          setSession(null);
+          setUser(null);
+        }
       }
     );
 

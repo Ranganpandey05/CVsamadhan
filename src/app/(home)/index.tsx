@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -17,10 +18,13 @@ interface Report {
 }
 
 const CitizenHomeScreen = () => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
+  const router = useRouter();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<any>(null);
+
+  // Don't redirect here, let the root layout handle it
 
   useEffect(() => {
     fetchUserProfile();
@@ -132,7 +136,7 @@ const CitizenHomeScreen = () => {
     return 'Evening';
   };
 
-  if (loading) {
+  if (loading || (!user && !session)) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>

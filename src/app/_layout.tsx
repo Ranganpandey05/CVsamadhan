@@ -1,77 +1,6 @@
-// import { Stack } from 'expo-router'
-
-// export default function RootLayout (){
-//     return(
-//         <Stack>
-//             <Stack.Screen name='(home)'
-//             options={{headerShown:false, title: 'CiviSamadhan'}} 
-//             >
-//             </Stack.Screen>
-//             {/*------ not needed from here-------  */}
-//             <Stack.Screen name='report'
-//             options={{headerShown:true, title: 'Home'}} 
-//             >
-//             </Stack.Screen>
-//             <Stack.Screen name='inbox'
-//             options={{headerShown:true, title: 'inbox'}} 
-//             >
-//             </Stack.Screen>
-//            <Stack.Screen name='profile'
-//             options={{headerShown:true, title: 'profile'}} 
-//             >
-//             </Stack.Screen>
-//             {/* --------Till here ------- */}
-//             <Stack.Screen name='auth'
-//             options={{headerShown:true}} 
-//             >
-//             </Stack.Screen>
-//         </Stack>
-
-//     );
-// }
-
-// import React, { useEffect } from 'react';
-// import { Stack, useRouter, useSegments } from 'expo-router';
-// import { AuthProvider, useAuth } from '../context/AuthContext'; // Adjust path if needed
-
-// const InitialLayout = () => {
-//   const { session, loading } = useAuth();
-//   const router = useRouter();
-//   const segments = useSegments();
-
-//   useEffect(() => {
-//     if (loading) return;
-
-//     const inAuthGroup = segments[0] === '(auth)';
-
-//     if (session && !inAuthGroup) {
-//       // User is signed in and not in the auth group.
-//       // Redirect to the home screen.
-//       router.replace('/(home)');
-//     } else if (!session) {
-//       // User is not signed in.
-//       // Redirect to the auth screen.
-//       router.replace('/auth');
-//     }
-//   }, [session, loading, segments]);
-
-//   return (
-//     <Stack>
-//       <Stack.Screen name="auth" options={{ headerShown: false }} />
-//       <Stack.Screen name="(home)" options={{ headerShown: false }} />
-//     </Stack>
-//   );
-// };
-
-// export default function RootLayout() {
-//   return (
-//     <AuthProvider>
-//       <InitialLayout />
-//     </AuthProvider>
-//   );
-// }
 
 import React, { useEffect } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { SplashScreen, Stack, useRouter, useSegments } from 'expo-router';
 import { AuthProvider, useAuth } from '../context/AuthContext'; // Adjust path if needed
 
@@ -84,6 +13,8 @@ const InitialLayout = () => {
   const segments = useSegments();
 
   useEffect(() => {
+    console.log('Navigation effect triggered:', { loading, session: !!session, segments });
+    
     if (loading) {
       return; // Don't do anything until the session is loaded.
     }
@@ -92,22 +23,29 @@ const InitialLayout = () => {
     SplashScreen.hideAsync();
 
     const inAppGroup = segments[0] === '(home)';
+    const inAuthGroup = segments[0] === '(auth)';
 
     if (session && !inAppGroup) {
       // User is signed in but is not in the main app group.
-      // This can happen if they are on the welcome/login screen.
       // Redirect them to the home screen.
+      console.log('User signed in, redirecting to home screen');
       router.replace('/(home)');
     } else if (!session && inAppGroup) {
-      // User is not signed in and is trying to access a protected screen.
-      // Redirect them to the main welcome screen.
+      // User is not signed in and is trying to access protected home screens.
+      // Redirect them to the welcome screen.
+      console.log('User not signed in, redirecting to welcome screen');
       router.replace('/');
     }
+    // Note: We don't redirect away from auth screens - let users access login/signup
   }, [session, loading, segments]);
 
-  // This simple return prevents any UI from showing while we determine the auth state.
+  // Show a minimal loading screen while determining auth state
   if (loading) {
-    return null;
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#ffffff' }}>
+        <ActivityIndicator size="small" color="#3b82f6" />
+      </View>
+    );
   }
 
   return (

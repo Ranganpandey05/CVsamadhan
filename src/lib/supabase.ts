@@ -251,6 +251,14 @@ export const signOut = async () => {
       return { error };
     }
     console.log('Sign out successful');
+    
+    // Force clear any cached session data
+    try {
+      await supabase.auth.getSession();
+    } catch (e) {
+      console.log('Session cleared');
+    }
+    
     return { error: null };
   } catch (error) {
     console.error('Sign out error:', error);

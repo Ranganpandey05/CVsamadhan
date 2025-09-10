@@ -154,7 +154,7 @@
 // });
 
 import React, { useState, useEffect } from 'react';
-import { Alert, StyleSheet, View, TextInput, Text, TouchableOpacity, SafeAreaView, ActivityIndicator, ScrollView } from 'react-native';
+import { Alert, StyleSheet, View, TextInput, Text, TouchableOpacity, SafeAreaView, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { supabase, testConnection, directSignUp, directSignIn, resendConfirmation } from '../../lib/supabase';
 import { Link } from 'expo-router';
 
@@ -324,8 +324,17 @@ export default function CitizenAuth() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={{justifyContent: 'center', flexGrow: 1}}>
-        <View style={styles.form}>
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoidingView} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.form}>
           <Text style={styles.title}>{isSignUp ? 'Create Citizen Account' : 'Citizen Login'}</Text>
           
           {isSignUp && (
@@ -425,8 +434,9 @@ export default function CitizenAuth() {
                 <Text style={styles.backButtonText}>Back to role selection</Text>
              </TouchableOpacity>
           </Link>
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -436,10 +446,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
   },
   form: {
     padding: 24,
+    paddingBottom: 40,
   },
   title: {
     fontSize: 28,

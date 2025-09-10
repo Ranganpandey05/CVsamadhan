@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, View, TextInput, Text, TouchableOpacity, SafeAreaView, ActivityIndicator, ScrollView } from 'react-native';
+import { Alert, StyleSheet, View, TextInput, Text, TouchableOpacity, SafeAreaView, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { supabase, directSignUp, directSignIn } from '../../lib/supabase';
 import { Link, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -156,7 +156,16 @@ export default function WorkerAuth() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.form}>
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoidingView} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.form}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         <Text style={styles.title}>{isSignUp ? 'Worker Registration' : 'Worker Login'}</Text>
         
         {isSignUp && (
@@ -210,7 +219,8 @@ export default function WorkerAuth() {
         <Link href="/" asChild>
            <TouchableOpacity style={styles.backButton}><Text style={styles.backButtonText}>Back to role selection</Text></TouchableOpacity>
         </Link>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -220,10 +230,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    justifyContent: 'center',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
   },
   form: {
+    flexGrow: 1,
     padding: 24,
+    paddingBottom: 40,
   },
   title: {
     fontSize: 28,

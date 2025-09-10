@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Image, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../../../context/AuthContext';
 import { supabase, signOut } from '../../../lib/supabase';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 const ProfileScreen = () => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
+  const router = useRouter();
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -16,21 +18,28 @@ const ProfileScreen = () => {
 
   const fetchUserProfile = async () => {
     try {
+      const currentUser = user || session?.user;
+      if (!currentUser) {
+        console.log('No user or session available');
+        setLoading(false);
+        return;
+      }
+
       // Try to fetch from profiles table first
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user?.id)
+        .eq('id', currentUser.id)
         .single();
       
       if (error) {
         console.log('Profiles table not accessible, using user metadata:', error.message);
         // Fallback to user metadata if profiles table is not accessible
         setUserProfile({
-          id: user?.id,
-          full_name: user?.user_metadata?.full_name || 'User',
-          username: user?.user_metadata?.username || 'Not provided',
-          phone_number: user?.user_metadata?.phone_number || 'Not provided',
+          id: currentUser.id,
+          full_name: currentUser.user_metadata?.full_name || 'User',
+          username: currentUser.user_metadata?.username || 'Not provided',
+          phone_number: currentUser.user_metadata?.phone_number || 'Not provided',
           role: 'citizen', // Default role
           department: null,
           speciality: null,
@@ -42,11 +51,12 @@ const ProfileScreen = () => {
     } catch (error) {
       console.error('Error fetching profile:', error);
       // Fallback to user metadata
+      const currentUser = user || session?.user;
       setUserProfile({
-        id: user?.id,
-        full_name: user?.user_metadata?.full_name || 'User',
-        username: user?.user_metadata?.username || 'Not provided',
-        phone_number: user?.user_metadata?.phone_number || 'Not provided',
+        id: currentUser?.id,
+        full_name: currentUser?.user_metadata?.full_name || 'User',
+        username: currentUser?.user_metadata?.username || 'Not provided',
+        phone_number: currentUser?.user_metadata?.phone_number || 'Not provided',
         role: 'citizen', // Default role
         department: null,
         speciality: null,
@@ -75,7 +85,12 @@ const ProfileScreen = () => {
                 Alert.alert('Error', 'Failed to sign out. Please try again.');
               } else {
                 console.log('Sign out successful, should redirect to login');
-                // The AuthContext should handle the redirect automatically
+                // Force immediate navigation to welcome screen
+                router.replace('/');
+                // Backup navigation in case the first one fails
+                setTimeout(() => {
+                  router.replace('/');
+                }, 50);
               }
             } catch (error) {
               console.error('Sign out exception:', error);
@@ -104,7 +119,7 @@ const ProfileScreen = () => {
     }
   };
 
-  if (loading) {
+  if (loading || (!user && !session)) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>

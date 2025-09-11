@@ -43,8 +43,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // Create a custom fetch function that handles React Native networking issues
 const customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = typeof input === 'string' ? input : input.toString();
-  console.log('Making request to:', url);
-  console.log('Request options:', init);
+  
+  // Reduced logging for better performance
   
   try {
     const response = await fetch(input, {
@@ -57,8 +57,7 @@ const customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       },
     });
     
-    console.log('Response status:', response.status);
-    console.log('Response headers:', response.headers);
+    // Reduced logging for better performance
     
     return response;
   } catch (error) {
@@ -257,6 +256,15 @@ export const signOut = async () => {
       await supabase.auth.getSession();
     } catch (e) {
       console.log('Session cleared');
+    }
+    
+    // Clear AsyncStorage to ensure no session persistence
+    try {
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      await AsyncStorage.clear();
+      console.log('AsyncStorage cleared');
+    } catch (e) {
+      console.log('AsyncStorage clear failed:', e);
     }
     
     return { error: null };

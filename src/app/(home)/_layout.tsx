@@ -164,11 +164,8 @@ export default function HomeLayout() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log('Home layout effect - user:', !!user, 'session:', !!session);
-    
     // Only proceed if we have a user or session
     if (!user && !session) {
-      console.log('No user or session found, not rendering home layout');
       return;
     }
 
@@ -177,7 +174,6 @@ export default function HomeLayout() {
       try {
         const currentUser = user || session?.user;
         if (!currentUser) {
-          console.log('No user or session available for profile fetch');
           setUserRole('citizen');
           setLoading(false);
           return;
@@ -190,8 +186,9 @@ export default function HomeLayout() {
           .single();
 
         if (error) {
-          console.log('Profiles table not accessible, using default role:', error.message);
-          setUserRole('citizen'); // Default role when profiles table is not accessible
+          // Try to get role from user metadata as fallback
+          const roleFromMetadata = currentUser.user_metadata?.role || 'citizen';
+          setUserRole(roleFromMetadata);
         } else {
           setUserRole(data?.role || 'citizen');
         }

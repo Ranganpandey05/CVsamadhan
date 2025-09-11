@@ -13,8 +13,7 @@ const InitialLayout = () => {
   const segments = useSegments();
 
   useEffect(() => {
-    console.log('Navigation effect triggered:', { loading, session: !!session, segments });
-    
+    // Reduce console logging for better performance
     if (loading) {
       return; // Don't do anything until the session is loaded.
     }

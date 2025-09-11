@@ -142,8 +142,21 @@ const ProfileScreen = () => {
               <View style={styles.onlineIndicator} />
             </View>
             <View style={styles.userInfo}>
-              <Text style={styles.userName}>{userProfile?.full_name || 'User'}</Text>
-              <Text style={styles.userEmail}>{user?.email}</Text>
+              <View style={styles.userInfoHeader}>
+                <View style={styles.userInfoText}>
+                  <Text style={styles.userName}>{userProfile?.full_name || 'User'}</Text>
+                  <Text style={styles.userEmail}>{user?.email}</Text>
+                </View>
+                <Image 
+                  source={require('../../../assets/CiviSamadhanlogo.png')} 
+                  style={styles.headerLogo} 
+                  resizeMode="contain"
+                  fadeDuration={0} // Disable fade animation for faster loading
+                  onError={() => {
+                    console.log('Header logo failed to load');
+                  }}
+                />
+              </View>
               <View style={[styles.roleBadge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
                 <FontAwesome name={userProfile?.role === 'worker' ? 'wrench' : 'user'} size={12} color="white" />
                 <Text style={styles.roleText}>{userProfile?.role?.toUpperCase() || 'CITIZEN'}</Text>
@@ -312,6 +325,19 @@ const styles = StyleSheet.create({
   },
   userInfo: {
     flex: 1,
+  },
+  userInfoHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  userInfoText: {
+    flex: 1,
+  },
+  headerLogo: {
+    width: 40,
+    height: 40,
+    marginLeft: 10,
   },
   userName: {
     fontSize: 22,

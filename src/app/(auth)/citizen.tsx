@@ -1,158 +1,3 @@
-// import React, { useState } from 'react';
-// import { Alert, StyleSheet, View, TextInput, Text, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
-// import { supabase } from '../../lib/supabase';
-// import { Link } from 'expo-router';
-
-// // This screen handles both Login and Sign Up for Citizens.
-// export default function CitizenAuth() {
-//   const [email, setEmail] = useState('');
-//   const [password, setPassword] = useState('');
-//   const [fullName, setFullName] = useState('');
-//   const [username, setUsername] = useState('');
-  
-//   const [loading, setLoading] = useState(false);
-//   const [isSignUp, setIsSignUp] = useState(false);
-
-//   async function handleAuth() {
-//     setLoading(true);
-//     const authFunction = isSignUp ? supabase.auth.signUp : supabase.auth.signInWithPassword;
-    
-//     const options = isSignUp
-//       ? { email, password, options: { data: { full_name: fullName, username: username } } }
-//       : { email, password };
-
-//     const { error } = await authFunction(options);
-
-//     if (error) {
-//       Alert.alert('Authentication Error', error.message);
-//     } else if (isSignUp) {
-//       Alert.alert('Success', 'Please check your email to confirm your account!');
-//     }
-//     // On successful login, the root layout will handle redirection automatically.
-    
-//     setLoading(false);
-//   }
-
-//   return (
-//     <SafeAreaView style={styles.container}>
-//       <View style={styles.form}>
-//         <Text style={styles.title}>{isSignUp ? 'Create Citizen Account' : 'Citizen Login'}</Text>
-        
-//         {isSignUp && (
-//           <>
-//             <TextInput
-//               style={styles.input}
-//               onChangeText={setFullName}
-//               value={fullName}
-//               placeholder="Full Name"
-//               autoCapitalize="words"
-//             />
-//             <TextInput
-//               style={styles.input}
-//               onChangeText={setUsername}
-//               value={username}
-//               placeholder="Username"
-//               autoCapitalize="none"
-//             />
-//           </>
-//         )}
-
-//         <TextInput
-//           style={styles.input}
-//           onChangeText={setEmail}
-//           value={email}
-//           placeholder="email@address.com"
-//           autoCapitalize="none"
-//           keyboardType="email-address"
-//         />
-//         <TextInput
-//           style={styles.input}
-//           onChangeText={setPassword}
-//           value={password}
-//           secureTextEntry
-//           placeholder="Password"
-//           autoCapitalize="none"
-//         />
-
-//         <TouchableOpacity style={styles.button} onPress={handleAuth} disabled={loading}>
-//           {loading ? (
-//             <ActivityIndicator color="#ffffff" />
-//           ) : (
-//             <Text style={styles.buttonText}>{isSignUp ? 'Sign Up' : 'Sign In'}</Text>
-//           )}
-//         </TouchableOpacity>
-
-//         <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)} style={styles.toggleButton}>
-//           <Text style={styles.toggleText}>
-//             {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
-//           </Text>
-//         </TouchableOpacity>
-        
-//         <Link href="/" asChild>
-//            <TouchableOpacity style={styles.backButton}>
-//               <Text style={styles.backButtonText}>Back to role selection</Text>
-//            </TouchableOpacity>
-//         </Link>
-//       </View>
-//     </SafeAreaView>
-//   );
-// }
-
-// // A comprehensive stylesheet for a modern look
-// const styles = StyleSheet.create({
-//   container: {
-//     flex: 1,
-//     backgroundColor: '#fff',
-//     justifyContent: 'center',
-//     padding: 24,
-//   },
-//   form: {
-//     width: '100%',
-//   },
-//   title: {
-//     fontSize: 28,
-//     fontWeight: 'bold',
-//     color: '#1e293b',
-//     marginBottom: 20,
-//     textAlign: 'center',
-//   },
-//   input: {
-//     backgroundColor: '#f1f5f9',
-//     padding: 15,
-//     borderRadius: 10,
-//     marginBottom: 15,
-//     fontSize: 16,
-//   },
-//   button: {
-//     backgroundColor: '#3b82f6',
-//     padding: 18,
-//     borderRadius: 10,
-//     alignItems: 'center',
-//     marginTop: 10,
-//   },
-//   buttonText: {
-//     color: 'white',
-//     fontWeight: '600',
-//     fontSize: 16,
-//   },
-//   toggleButton: {
-//     marginTop: 20,
-//   },
-//   toggleText: {
-//     color: '#3b82f6',
-//     textAlign: 'center',
-//     fontWeight: '500',
-//   },
-//   backButton: {
-//       marginTop: 20,
-//   },
-//   backButtonText: {
-//       color: '#64748b',
-//       textAlign: 'center',
-//       fontWeight: '500'
-//   }
-// });
-
 import React, { useState, useEffect } from 'react';
 import { Alert, StyleSheet, View, TextInput, Text, TouchableOpacity, SafeAreaView, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { supabase, testConnection, directSignUp, directSignIn, resendConfirmation } from '../../lib/supabase';
@@ -258,12 +103,13 @@ export default function CitizenAuth() {
         console.error('Authentication error:', error);
         
         // Handle specific error types
-        if (error.message.includes('Network request failed') || error.message.includes('fetch')) {
+        const errorMsg = (error as any)?.message || String(error) || 'Unknown error';
+        if (errorMsg.includes('Network request failed') || errorMsg.includes('fetch')) {
           Alert.alert(
             'Connection Error', 
             'Unable to connect to the server. Please check your internet connection and try again.'
           );
-        } else if (error.message.includes('Invalid login credentials') || error.message.includes('invalid_credentials')) {
+        } else if (errorMsg.includes('Invalid login credentials') || errorMsg.includes('invalid_credentials')) {
           Alert.alert(
             'Login Failed', 
             'The email or password you entered is incorrect. Please check your credentials and try again.',
@@ -276,9 +122,9 @@ export default function CitizenAuth() {
               }
             ]
           );
-        } else if (error.message.includes('User already registered')) {
+        } else if (errorMsg.includes('User already registered')) {
           Alert.alert('Sign Up Error', 'An account with this email already exists. Please sign in instead.');
-        } else if (error.message.includes('email_not_confirmed') || error.message.includes('Email not confirmed')) {
+        } else if (errorMsg.includes('email_not_confirmed') || errorMsg.includes('Email not confirmed')) {
           Alert.alert(
             'Email Confirmation Required', 
             'Please check your email and click the confirmation link before signing in. If you don\'t see the email, check your spam folder.',
@@ -292,7 +138,18 @@ export default function CitizenAuth() {
             ]
           );
         } else {
-          Alert.alert('Authentication Error', error.message);
+          // Provide more specific error messages
+          let errorMessage = 'Authentication failed. Please try again.';
+          const errorMsg = (error as any)?.message || String(error) || 'Unknown error';
+          
+          if (errorMsg.includes('Invalid login credentials') || errorMsg.includes('invalid_credentials')) {
+            errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+          } else if (errorMsg.includes('Too many requests')) {
+            errorMessage = 'Too many login attempts. Please wait a moment and try again.';
+          } else if (errorMsg.includes('User not found')) {
+            errorMessage = 'No account found with this email address. Please sign up first.';
+          }
+          Alert.alert('Authentication Failed', errorMessage);
         }
       } else if (isSignUp) {
         console.log('Sign up successful:', data);

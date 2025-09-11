@@ -38,12 +38,13 @@ export default function WorkerAuth() {
         const { data, error } = await directSignIn(email, password);
         
         if (error) {
-          if (error.message.includes('email_not_confirmed') || error.message.includes('Email not confirmed')) {
+          const errorMsg = (error as any)?.message || String(error) || 'Unknown error';
+          if (errorMsg.includes('email_not_confirmed') || errorMsg.includes('Email not confirmed')) {
             Alert.alert(
               'Email Confirmation Required', 
               'Please check your email and click the confirmation link before signing in. If you don\'t see the email, check your spam folder.'
             );
-          } else if (error.message.includes('Invalid login credentials') || error.message.includes('invalid_credentials')) {
+          } else if (errorMsg.includes('Invalid login credentials') || errorMsg.includes('invalid_credentials')) {
             Alert.alert(
               'Login Failed', 
               'The email or password you entered is incorrect. Please check your credentials and try again.',
@@ -57,25 +58,66 @@ export default function WorkerAuth() {
               ]
             );
           } else {
-            Alert.alert('Login Error', error.message);
+            // Provide more specific error messages
+            let errorMessage = 'Login failed. Please try again.';
+            
+            if (errorMsg.includes('Invalid login credentials') || errorMsg.includes('invalid_credentials')) {
+              errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+            } else if (errorMsg.includes('email_not_confirmed') || errorMsg.includes('Email not confirmed')) {
+              errorMessage = 'Please check your email and click the confirmation link before signing in.';
+            } else if (errorMsg.includes('Too many requests')) {
+              errorMessage = 'Too many login attempts. Please wait a moment and try again.';
+            } else if (errorMsg.includes('User not found')) {
+              errorMessage = 'No account found with this email address. Please sign up first.';
+            }
+            Alert.alert('Login Failed', errorMessage);
           }
         } else if (data?.user) {
           // Check worker status after login
-          const { data: profile, error: profileError } = await supabase
-              .from('profiles')
-              .select('status')
-              .eq('id', data.user.id)
-              .single();
+          try {
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('status')
+                .eq('id', data.user.id)
+                .single();
 
-          if (profileError) {
-              Alert.alert('Error', 'Could not fetch worker status.');
-          } else if (profile?.status !== 'approved') {
-              Alert.alert('Pending Approval', 'Your account has not been approved by the municipality yet.');
-              supabase.auth.signOut(); // Log them out
-          } else {
-              Alert.alert('Welcome!', 'You have successfully signed in. Redirecting to your dashboard...');
+            if (profileError) {
+                console.log('Profile fetch error:', profileError);
+                // If we can't fetch profile, allow login but show warning
+                Alert.alert(
+                  'Login Successful', 
+                  'You have signed in successfully. Some features may be limited until your profile is fully set up.',
+                  [{ text: 'OK' }]
+                );
+            } else if (profile?.status === 'pending') {
+                Alert.alert(
+                  'Pending Approval', 
+                  'Your worker application is under review. You can access limited features while waiting for approval.',
+                  [
+                    { 
+                      text: 'Continue', 
+                      onPress: () => {
+                        // Allow them to continue to dashboard with limited access
+                        console.log('Worker login successful - pending approval');
+                      }
+                    }
+                  ]
+                );
+            } else if (profile?.status === 'approved') {
+                Alert.alert('Welcome!', 'You have successfully signed in. Redirecting to your dashboard...');
+            } else {
+                Alert.alert(
+                  'Account Status', 
+                  `Your account status is: ${profile?.status || 'unknown'}. Please contact support if you need assistance.`,
+                  [{ text: 'OK' }]
+                );
+            }
+          } catch (profileCheckError) {
+            console.log('Profile check error:', profileCheckError);
+            // If profile check fails, still allow login
+            Alert.alert('Login Successful', 'You have signed in successfully.');
           }
-          // If approved, the root layout will handle redirection
+          // The root layout will handle redirection regardless of approval status
         }
       } catch (err) {
         Alert.alert('Network Error', 'Unable to connect to the server. Please check your internet connection and try again.');
@@ -99,7 +141,7 @@ export default function WorkerAuth() {
     });
 
     if (signUpError) {
-      Alert.alert('Sign Up Error', signUpError.message);
+      Alert.alert('Sign Up Error', (signUpError as any)?.message || String(signUpError) || 'Unknown error');
       setLoading(false);
       return;
     }
@@ -132,24 +174,44 @@ export default function WorkerAuth() {
         return;
     }
 
-    // 3. Update the user's profile with worker info and pending status
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({
-        department,
-        speciality,
-        id_card_url: filePath,
-        status: 'pending', // Key step: set status to pending
-        role: 'worker'
-      })
-      .eq('id', signUpData.user.id);
-      
-    if (updateError) {
-        Alert.alert('Profile Error', 'Could not update your profile with worker information.');
-    } else {
-        Alert.alert('Registration Complete', 'Please check your email to confirm your account. Your profile is now pending approval from the municipality.');
-        // We don't log them in, they must wait for approval.
+    // 3. Update the user's profile with worker info
+    try {
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          department,
+          speciality,
+          id_card_url: filePath,
+          status: 'pending', // Key step: set status to pending
+          role: 'worker'
+        })
+        .eq('id', signUpData.user.id);
+        
+      if (updateError) {
+        console.log('Profile update failed:', updateError.message);
+        Alert.alert('Warning', 'Account created but profile update failed. Please contact support.');
+      } else {
+        console.log('Profile updated successfully for worker');
+      }
+    } catch (profileError) {
+      console.log('Profile update error:', profileError);
+      Alert.alert('Warning', 'Account created but profile update failed. Please contact support.');
     }
+
+    // Show success message regardless of profile update
+    Alert.alert(
+      'Registration Complete!', 
+      'Please check your email to confirm your account. Your application will be reviewed by the municipality for approval.',
+      [
+        {
+          text: 'OK',
+          onPress: () => {
+            // Switch to login mode after successful registration
+            setIsSignUp(false);
+          }
+        }
+      ]
+    );
 
     setLoading(false);
   }

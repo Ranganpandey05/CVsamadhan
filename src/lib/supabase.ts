@@ -1,33 +1,3 @@
-// import 'react-native-url-polyfill/auto';
-// import AsyncStorage from '@react-native-async-storage/async-storage';
-// import { createClient } from '@supabase/supabase-js';
-
-// const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-// const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-
-// if (!supabaseUrl || !supabaseAnonKey) {
-//   throw new Error("Supabase URL or Anon Key is missing. Check your .env file.");
-// }
-
-// export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-//   auth: {
-//     storage: AsyncStorage,
-//     autoRefreshToken: true,
-//     persistSession: true,
-//     detectSessionInUrl: false,
-//   },
-// });
-
-// MY GUIDE :-
-
-// Explanation of this file:
-
-// react-native-url-polyfill/auto: This polyfill is needed because the Supabase client uses URL APIs that aren't fully available in the React Native environment.
-
-// AsyncStorage: We're telling the Supabase client to use React Native's AsyncStorage to securely store user session information (like login tokens) on the device. This keeps the user logged in between app launches.
-
-// process.env.EXPO_PUBLIC_...: We are securely loading the URL and key from the .env file you created.
-// This polyfill is required to use the Supabase client in a React Native environment.
 import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
@@ -40,47 +10,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Supabase URL or Anon Key is missing. Check your environment variables.");
 }
 
-// Create a custom fetch function that handles React Native networking issues
-const customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-  const url = typeof input === 'string' ? input : input.toString();
-  
-  // Reduced logging for better performance
-  
-  try {
-    const response = await fetch(input, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'supabase-js-react-native',
-        ...init?.headers,
-      },
-    });
-    
-    // Reduced logging for better performance
-    
-    return response;
-  } catch (error) {
-    console.error('Fetch error:', error);
-    throw error;
-  }
-};
-
+// Create Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
-    flowType: 'implicit',
-  },
-  global: {
-    fetch: customFetch,
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 2,
-    },
   },
 });
 
@@ -88,188 +24,236 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 console.log('Supabase initialized with URL:', supabaseUrl);
 console.log('Supabase client created successfully');
 
-// Test the connection
+// Database Types
+export interface Profile {
+  id: string;
+  email?: string;
+  full_name?: string;
+  avatar_url?: string;
+  role: 'citizen' | 'worker' | 'admin';
+  phone?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Issue {
+  id: string;
+  issue_number: string;
+  title: string;
+  description: string;
+  category: string;
+  priority: 'Low' | 'Medium' | 'High' | 'Urgent';
+  status: 'Reported' | 'Acknowledged' | 'Assigned' | 'In Progress' | 'Completed' | 'Verified';
+  latitude: number;
+  longitude: number;
+  address: string;
+  citizen_id: string;
+  citizen_name: string;
+  citizen_phone: string;
+  assigned_worker_id?: string;
+  photos: string[];
+  created_at: string;
+  updated_at: string;
+  resolved_at?: string;
+}
+
+export interface Worker {
+  id: string;
+  worker_id: string;
+  full_name: string;
+  phone?: string;
+  email?: string;
+  department?: string;
+  status: 'available' | 'busy' | 'offline';
+  current_latitude?: number;
+  current_longitude?: number;
+  created_at: string;
+  profile_id: string;
+}
+
+export interface IssueUpvote {
+  id: string;
+  issue_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface Assignment {
+  id: string;
+  issue_id: string;
+  worker_id: string;
+  assigned_by: string;
+  assigned_at: string;
+  status: 'assigned' | 'accepted' | 'in_progress' | 'completed';
+  notes?: string;
+  completed_at?: string;
+}
+
+// Helper functions
+export const getProfile = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+  
+  return { data, error };
+};
+
+export const createIssue = async (issueData: Partial<Issue>) => {
+  const { data, error } = await supabase
+    .from('issues')
+    .insert(issueData)
+    .select()
+    .single();
+  
+  return { data, error };
+};
+
+export const getNearbyIssues = async (latitude: number, longitude: number, radiusKm: number = 2.5) => {
+  // Calculate bounding box
+  const latDelta = radiusKm / 111; // 1 degree latitude ≈ 111 km
+  const lngDelta = radiusKm / (111 * Math.cos(latitude * Math.PI / 180));
+
+  const { data, error } = await supabase
+    .from('issues')
+    .select(`
+      *,
+      profiles!citizen_id (
+        full_name,
+        avatar_url
+      )
+    `)
+    .gte('latitude', latitude - latDelta)
+    .lte('latitude', latitude + latDelta)
+    .gte('longitude', longitude - lngDelta)
+    .lte('longitude', longitude + lngDelta)
+    .order('created_at', { ascending: false });
+
+  return { data, error };
+};
+
+export const getIssueUpvotes = async (issueId: string) => {
+  const { count, error } = await supabase
+    .from('issue_upvotes')
+    .select('*', { count: 'exact' })
+    .eq('issue_id', issueId);
+
+  return { count: count || 0, error };
+};
+
+export const toggleUpvote = async (issueId: string, userId: string) => {
+  // Check if user already upvoted
+  const { data: existingUpvote, error: checkError } = await supabase
+    .from('issue_upvotes')
+    .select('id')
+    .eq('issue_id', issueId)
+    .eq('user_id', userId)
+    .single();
+
+  if (checkError && checkError.code !== 'PGRST116') {
+    return { error: checkError };
+  }
+
+  if (existingUpvote) {
+    // Remove upvote
+    const { error } = await supabase
+      .from('issue_upvotes')
+      .delete()
+      .eq('issue_id', issueId)
+      .eq('user_id', userId);
+    
+    return { removed: true, error };
+  } else {
+    // Add upvote
+    const { data, error } = await supabase
+      .from('issue_upvotes')
+      .insert({ issue_id: issueId, user_id: userId })
+      .select()
+      .single();
+    
+    return { data, error };
+  }
+};
+
+// Test connection function
 export const testConnection = async () => {
   try {
     console.log('Testing Supabase connection...');
     const { data, error } = await supabase.auth.getSession();
     if (error) {
       console.log('Connection test error:', error);
+      return { success: false, error };
     } else {
-      console.log('Connection test successful:', data);
+      console.log('Connection test successful');
+      return { success: true, data };
     }
-    return { data, error };
-  } catch (err) {
-    console.error('Connection test failed:', err);
-    return { data: null, error: err };
+  } catch (error) {
+    console.error('Connection test failed:', error);
+    return { success: false, error };
   }
 };
 
-// Direct authentication functions to bypass Supabase client issues
-export const directSignUp = async (email: string, password: string, metadata: any = {}) => {
+// Authentication Functions
+export const signOut = async () => {
   try {
-    console.log('Direct sign up attempt...');
-    const response = await fetch(`${supabaseUrl}/auth/v1/signup`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({
-        email,
-        password,
-        data: metadata,
-      }),
-    });
-
-    console.log('Direct signup response status:', response.status);
+    console.log('Starting sign out process...');
     
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Direct signup error response:', errorData);
-      throw new Error(`Signup failed: ${response.status} ${response.statusText}`);
+    // Sign out from Supabase
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Sign out error:', error);
+      return { success: false, error };
     }
-
-    const data = await response.json();
-    console.log('Direct signup success:', data);
-    return { data, error: null };
+    
+    console.log('Sign out successful');
+    return { success: true };
   } catch (error) {
-    console.error('Direct signup error:', error);
+    console.error('Sign out exception:', error);
+    return { success: false, error };
+  }
+};
+
+export const signInWithEmail = async (email: string, password: string) => {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    return { data, error };
+  } catch (error) {
+    console.error('Sign in exception:', error);
     return { data: null, error };
   }
 };
 
-export const directSignIn = async (email: string, password: string) => {
+export const signUpWithEmail = async (email: string, password: string, fullName?: string) => {
   try {
-    console.log('Direct sign in attempt...');
-    const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${supabaseAnonKey}`,
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+        },
       },
-      body: JSON.stringify({
-        email,
-        password,
-      }),
     });
-
-    console.log('Direct signin response status:', response.status);
-    
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Direct signin error response:', errorData);
-      throw new Error(`Signin failed: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    console.log('Direct signin success:', data);
-    
-    // Set the session in Supabase client
-    if (data.access_token) {
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
-      });
-      
-      if (sessionError) {
-        console.error('Error setting session:', sessionError);
-        return { data: null, error: sessionError };
-      }
-      
-      console.log('Session set successfully');
-    }
-    
-    return { data, error: null };
+    return { data, error };
   } catch (error) {
-    console.error('Direct signin error:', error);
+    console.error('Sign up exception:', error);
     return { data: null, error };
   }
 };
 
 export const resendConfirmation = async (email: string) => {
   try {
-    console.log('Resending confirmation email...');
-    const response = await fetch(`${supabaseUrl}/auth/v1/resend`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({
-        email,
-        type: 'signup',
-      }),
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
     });
-
-    console.log('Resend confirmation response status:', response.status);
-    
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Resend confirmation error response:', errorData);
-      throw new Error(`Resend failed: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    console.log('Resend confirmation success:', data);
-    return { data, error: null };
+    return { error };
   } catch (error) {
-    console.error('Resend confirmation error:', error);
-    return { data: null, error };
-  }
-};
-
-// Check if user's email is verified
-export const checkEmailVerification = async () => {
-  try {
-    const { data: { user }, error } = await supabase.auth.getUser();
-    if (error) {
-      console.error('Error getting user:', error);
-      return { verified: false, error };
-    }
-    
-    const isVerified = user?.email_confirmed_at !== null;
-    console.log('Email verification status:', isVerified);
-    return { verified: isVerified, user, error: null };
-  } catch (error) {
-    console.error('Error checking email verification:', error);
-    return { verified: false, error };
-  }
-};
-
-// Sign out function
-export const signOut = async () => {
-  try {
-    console.log('Signing out...');
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Sign out error:', error);
-      return { error };
-    }
-    console.log('Sign out successful');
-    
-    // Force clear any cached session data
-    try {
-      await supabase.auth.getSession();
-    } catch (e) {
-      console.log('Session cleared');
-    }
-    
-    // Clear AsyncStorage to ensure no session persistence
-    try {
-      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-      await AsyncStorage.clear();
-      console.log('AsyncStorage cleared');
-    } catch (e) {
-      console.log('AsyncStorage clear failed:', e);
-    }
-    
-    return { error: null };
-  } catch (error) {
-    console.error('Sign out error:', error);
+    console.error('Resend confirmation exception:', error);
     return { error };
   }
 };

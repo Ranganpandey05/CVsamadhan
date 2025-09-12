@@ -1,68 +1,193 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { SplashScreen, Stack, useRouter, useSegments } from 'expo-router';
-import { AuthProvider, useAuth } from '../context/AuthContext'; // Adjust path if needed
+import { AuthProvider, useAuth } from '../context/AuthContext';
+import { LanguageProvider } from '../context/LanguageContext';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 // Keep the native splash screen visible until we've figured out the auth state.
 SplashScreen.preventAutoHideAsync();
 
 const InitialLayout = () => {
-  const { session, loading } = useAuth();
+  const { session, loading, profile, isAuthenticated } = useAuth();
   const router = useRouter();
   const segments = useSegments();
+  const [isNavigating, setIsNavigating] = useState(false);
+
+  // Clear navigation flag when segments actually change to welcome screen
+  useEffect(() => {
+    const currentPath = segments.join('/');
+    if (currentPath === '' || currentPath === 'index') {
+      // We're at the welcome screen, clear the navigation flag
+      setIsNavigating(false);
+    }
+  }, [segments]);
 
   useEffect(() => {
-    // Reduce console logging for better performance
     if (loading) {
-      return; // Don't do anything until the session is loaded.
+      return; // Don't do anything until auth is loaded
     }
 
-    // Hide the splash screen now that we have the auth information.
+    // Hide the splash screen now that we have the auth information
     SplashScreen.hideAsync();
 
-    const inAppGroup = segments[0] === '(home)';
+    const inWorkerGroup = segments[0] === '(worker)';
+    const inCitizenGroup = segments[0] === '(citizen)';
     const inAuthGroup = segments[0] === '(auth)';
+    const inTaskNavigation = segments[0] === 'task-navigation';
 
-    if (session && !inAppGroup) {
-      // User is signed in but is not in the main app group.
-      // Redirect them to the home screen.
-      console.log('User signed in, redirecting to home screen');
-      router.replace('/(home)');
-    } else if (!session && inAppGroup) {
-      // User is not signed in and is trying to access protected home screens.
-      // Redirect them to the welcome screen.
-      console.log('User not signed in, redirecting to welcome screen');
-      router.replace('/');
+    console.log('Navigation check:', { 
+      isAuthenticated, 
+      hasProfile: !!profile,
+      profileRole: profile?.role,
+      segments: segments.join('/'), 
+      inWorkerGroup,
+      inCitizenGroup,
+      inAuthGroup,
+      inTaskNavigation
+    });
+
+    // Prevent infinite navigation loops
+    const currentPath = segments.join('/');
+    
+    // IMMEDIATE CHECK: If user is not authenticated and in protected area, navigate immediately
+    if (!isAuthenticated && (inWorkerGroup || inCitizenGroup || inTaskNavigation)) {
+      console.log('Navigation: User logged out, forcing immediate redirect from:', segments.join('/'));
+      
+      if (!isNavigating) {
+        setIsNavigating(true);
+        
+        // Different navigation strategy for citizen tabs vs other areas
+        if (inCitizenGroup) {
+          console.log('Navigation: Escaping citizen tabs layout');
+          // More aggressive navigation for tabs
+          router.dismissAll();
+          router.replace('/');
+          
+          // Extra fallback for stubborn tabs
+          setTimeout(() => {
+            router.dismissAll();
+            router.navigate('/');
+          }, 50);
+          
+          setTimeout(() => {
+            router.push('/');
+          }, 100);
+          
+        } else {
+          // Standard navigation for other areas
+          router.replace('/');
+        }
+        
+        // Reset navigation state quickly
+        setTimeout(() => {
+          setIsNavigating(false);
+        }, 200);
+        
+        return;
+      }
     }
-    // Note: We don't redirect away from auth screens - let users access login/signup
-  }, [session, loading, segments]);
+    
+    // Skip additional navigation logic if we already handled logout above
+    if (!isAuthenticated && (inWorkerGroup || inCitizenGroup || inTaskNavigation)) {
+      // Already handled by immediate check above
+      return;
+    } else if (isAuthenticated && !profile) {
+      // Authenticated but no profile - go to auth
+      if (!inAuthGroup) {
+        console.log('Navigation: Redirecting to auth for profile setup');
+        if (!isNavigating) {
+          setIsNavigating(true);
+          router.replace('/(auth)/worker');
+        }
+      }
+    } else if (isAuthenticated && profile) {
+      // Check if worker needs approval
+      if (profile.role === 'worker' && profile.approval_status === 'pending') {
+        console.log('Navigation: Worker pending approval, showing waiting screen');
+        if (!inAuthGroup) {
+          if (!isNavigating) {
+            setIsNavigating(true);
+            router.replace('/(auth)/worker');
+          }
+        }
+        return;
+      }
+      
+      // Check if worker is rejected
+      if (profile.role === 'worker' && profile.approval_status === 'rejected') {
+        console.log('Navigation: Worker application rejected, redirecting to auth');
+        if (!inAuthGroup) {
+          if (!isNavigating) {
+            setIsNavigating(true);
+            router.replace('/(auth)/worker');
+          }
+        }
+        return;
+      }
+      
+      // Authenticated with profile - allow task navigation for workers
+      if (inTaskNavigation && profile.role !== 'worker') {
+        console.log('Navigation: Non-worker accessing task navigation, redirecting');
+        router.replace('/(auth)');
+        return;
+      }
+      
+      // Don't redirect if user is in task navigation and is a worker
+      if (inTaskNavigation && profile.role === 'worker') {
+        console.log('Navigation: Worker in task navigation, allowing');
+        return;
+      }
+      
+      // Authenticated with profile - go to correct area (only if approved)
+      const shouldBeInWorker = profile.role === 'worker' && profile.approval_status === 'approved' && !inWorkerGroup && !inTaskNavigation;
+      const shouldBeInCitizen = profile.role === 'citizen' && !inCitizenGroup;
+      
+      if (shouldBeInWorker) {
+        console.log('Navigation: Redirecting approved worker to dashboard');
+        if (!isNavigating) {
+          setIsNavigating(true);
+          router.replace('/(worker)/dashboard');
+        }
+      } else if (shouldBeInCitizen) {
+        console.log('Navigation: Redirecting citizen to home');
+        if (!isNavigating) {
+          setIsNavigating(true);
+          router.replace('/(citizen)');
+        }
+      }
+    }
+  }, [isAuthenticated, profile, loading, segments, router, isNavigating]);
 
-  // Show a minimal loading screen while determining auth state
+  // Show loading screen while determining auth state
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#ffffff' }}>
-        <ActivityIndicator size="small" color="#3b82f6" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FAFAFA' }}>
+        <ActivityIndicator size="large" color="#FF6B35" />
       </View>
     );
   }
 
   return (
     <Stack>
-      {/* The new welcome screen is now the root entry point */}
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      {/* The auth group contains citizen and worker login/signup */}
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-      {/* The main app content for logged-in users */}
-      <Stack.Screen name="(home)" options={{ headerShown: false }} />
+      <Stack.Screen name="(worker)" options={{ headerShown: false }} />
+      <Stack.Screen name="(citizen)" options={{ headerShown: false }} />
+      <Stack.Screen name="task-navigation" options={{ headerShown: false }} />
     </Stack>
   );
 };
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <InitialLayout />
-    </AuthProvider>
+    <ErrorBoundary>
+      <LanguageProvider>
+        <AuthProvider>
+          <InitialLayout />
+        </AuthProvider>
+      </LanguageProvider>
+    </ErrorBoundary>
   );
 }

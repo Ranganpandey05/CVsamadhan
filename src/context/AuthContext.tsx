@@ -1,17 +1,27 @@
-import React, { useState, useEffect, createContext, useContext, useMemo, useCallback } from 'react';
+import React, { useEffect, createContext, useContext } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase'; // Assuming my supabase setup is in src/lib
+import { useAuthStore } from '../store/authStore';
 
 type AuthContextType = {
   session: Session | null;
   user: User | null;
+  profile: any;
   loading: boolean;
+  isAuthenticated: boolean;
+  signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  forceRefreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType>({
   session: null,
   user: null,
+  profile: null,
   loading: true,
+  isAuthenticated: false,
+  signOut: async () => {},
+  refreshProfile: async () => {},
+  forceRefreshProfile: async () => {},
 });
 
 export const useAuth = () => {
@@ -19,50 +29,33 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    };
-
-    getSession();
-
-  const { data: authListener } = supabase.auth.onAuthStateChange(
-    (event, session) => {
-      // Only log important events to reduce console noise
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-        console.log('Auth state changed:', event, session ? 'Session exists' : 'No session');
-      }
-      
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-      
-      // Force clear state on sign out
-      if (event === 'SIGNED_OUT') {
-        console.log('Force clearing auth state on sign out');
-        setSession(null);
-        setUser(null);
-      }
-    }
-  );
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  const value = useMemo(() => ({
+  const {
     session,
     user,
+    profile,
     loading,
-  }), [session, user, loading]);
+    isAuthenticated,
+    signOut,
+    refreshProfile,
+    forceRefreshProfile,
+    initializeAuth
+  } = useAuthStore();
+
+  useEffect(() => {
+    // Initialize authentication when the app starts
+    initializeAuth();
+  }, []);
+
+  const value = {
+    session,
+    user,
+    profile,
+    loading,
+    isAuthenticated,
+    signOut,
+    refreshProfile,
+    forceRefreshProfile
+  };
 
   return (
     <AuthContext.Provider value={value}>

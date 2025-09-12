@@ -1,10 +1,83 @@
 import React, { useState, useEffect } from 'react';
 import { Alert, StyleSheet, View, TextInput, Text, TouchableOpacity, SafeAreaView, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
-import { supabase, testConnection, directSignUp, directSignIn, resendConfirmation } from '../../lib/supabase';
+import { supabase, testConnection, signUpWithEmail, signInWithEmail, resendConfirmation } from '../../lib/supabase';
+import { useLanguage } from '../../context/LanguageContext';
 import { Link } from 'expo-router';
+
+// Translations
+const translations = {
+  en: {
+    citizenAuth: 'Citizen Login',
+    citizenSignUp: 'Citizen Registration',
+    email: 'Email Address',
+    password: 'Password',
+    fullName: 'Full Name',
+    username: 'Username',
+    phoneNumber: 'Phone Number',
+    signIn: 'Sign In',
+    signUp: 'Create Account',
+    switchToSignUp: "Don't have an account? Sign Up",
+    switchToSignIn: 'Already have an account? Sign In',
+    resendConfirmation: 'Resend Confirmation Email',
+    backToWelcome: 'Back to Welcome',
+    connectionTesting: 'Testing connection...',
+    connectionFailed: 'Connection failed - check your internet',
+    connectionSuccess: 'Connected to server',
+    connectionError: 'Connection error',
+    emailRequired: 'Please enter your email address first.',
+    resendSuccess: 'Confirmation email sent! Please check your inbox.',
+    resendError: 'Failed to resend confirmation email. Please try again.',
+  },
+  hi: {
+    citizenAuth: 'नागरिक लॉगिन',
+    citizenSignUp: 'नागरिक पंजीकरण',
+    email: 'ईमेल पता',
+    password: 'पासवर्ड',
+    fullName: 'पूरा नाम',
+    username: 'उपयोगकर्ता नाम',
+    phoneNumber: 'फोन नंबर',
+    signIn: 'साइन इन',
+    signUp: 'खाता बनाएं',
+    switchToSignUp: 'खाता नहीं है? साइन अप करें',
+    switchToSignIn: 'पहले से खाता है? साइन इन करें',
+    resendConfirmation: 'पुष्टिकरण ईमेल पुनः भेजें',
+    backToWelcome: 'स्वागत पर वापस',
+    connectionTesting: 'कनेक्शन का परीक्षण...',
+    connectionFailed: 'कनेक्शन विफल - अपना इंटरनेट जांचें',
+    connectionSuccess: 'सर्वर से जुड़ा',
+    connectionError: 'कनेक्शन त्रुटि',
+    emailRequired: 'कृपया पहले अपना ईमेल पता दर्ज करें।',
+    resendSuccess: 'पुष्टिकरण ईमेल भेजा गया! कृपया अपना इनबॉक्स जांचें।',
+    resendError: 'पुष्टिकरण ईमेल पुनः भेजने में विफल। कृपया पुनः प्रयास करें।',
+  },
+  bn: {
+    citizenAuth: 'নাগরিক লগইন',
+    citizenSignUp: 'নাগরিক নিবন্ধন',
+    email: 'ইমেইল ঠিকানা',
+    password: 'পাসওয়ার্ড',
+    fullName: 'পূর্ণ নাম',
+    username: 'ব্যবহারকারীর নাম',
+    phoneNumber: 'ফোন নম্বর',
+    signIn: 'সাইন ইন',
+    signUp: 'অ্যাকাউন্ট তৈরি করুন',
+    switchToSignUp: 'অ্যাকাউন্ট নেই? সাইন আপ করুন',
+    switchToSignIn: 'ইতিমধ্যে অ্যাকাউন্ট আছে? সাইন ইন করুন',
+    resendConfirmation: 'নিশ্চিতকরণ ইমেইল পুনরায় পাঠান',
+    backToWelcome: 'স্বাগতম পাতায় ফিরে যান',
+    connectionTesting: 'সংযোগ পরীক্ষা করা হচ্ছে...',
+    connectionFailed: 'সংযোগ ব্যর্থ - আপনার ইন্টারনেট চেক করুন',
+    connectionSuccess: 'সার্ভারের সাথে সংযুক্ত',
+    connectionError: 'সংযোগ ত্রুটি',
+    emailRequired: 'অনুগ্রহ করে প্রথমে আপনার ইমেইল ঠিকানা লিখুন।',
+    resendSuccess: 'নিশ্চিতকরণ ইমেইল পাঠানো হয়েছে! অনুগ্রহ করে আপনার ইনবক্স চেক করুন।',
+    resendError: 'নিশ্চিতকরণ ইমেইল পুনরায় পাঠাতে ব্যর্থ। অনুগ্রহ করে আবার চেষ্টা করুন।',
+  },
+};
 
 // This screen handles both Login and Sign Up for Citizens.
 export default function CitizenAuth() {
+  const { language } = useLanguage();
+  const t = (key: keyof typeof translations.en) => translations[language][key] || translations.en[key];
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -13,7 +86,7 @@ export default function CitizenAuth() {
   
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<string>('Testing connection...');
+  const [connectionStatus, setConnectionStatus] = useState<string>(t('connectionTesting'));
 
   // Test connection on component mount
   useEffect(() => {
@@ -21,33 +94,33 @@ export default function CitizenAuth() {
       try {
         const { error } = await testConnection();
         if (error) {
-          setConnectionStatus('Connection failed - check your internet');
+          setConnectionStatus(t('connectionFailed'));
           console.error('Connection test failed:', error);
         } else {
-          setConnectionStatus('Connected to server');
+          setConnectionStatus(t('connectionSuccess'));
           console.log('Connection test successful');
         }
       } catch (err) {
-        setConnectionStatus('Connection error');
+        setConnectionStatus(t('connectionError'));
         console.error('Connection test error:', err);
       }
     };
     
     checkConnection();
-  }, []);
+  }, [language]);
 
   const handleResendConfirmation = async () => {
     if (!email) {
-      Alert.alert('Error', 'Please enter your email address first.');
+      Alert.alert('Error', t('emailRequired'));
       return;
     }
 
     try {
       const { error } = await resendConfirmation(email);
       if (error) {
-        Alert.alert('Error', 'Failed to resend confirmation email. Please try again.');
+        Alert.alert('Error', t('resendError'));
       } else {
-        Alert.alert('Success', 'Confirmation email sent! Please check your inbox.');
+        Alert.alert('Success', t('resendSuccess'));
       }
     } catch (err) {
       Alert.alert('Error', 'Failed to resend confirmation email. Please try again.');
@@ -90,12 +163,8 @@ export default function CitizenAuth() {
       
       // Use direct authentication functions to bypass Supabase client issues
       const { data, error } = isSignUp 
-        ? await directSignUp(email, password, { 
-            full_name: fullName, 
-            username: username, 
-            phone_number: phoneNumber 
-          })
-        : await directSignIn(email, password);
+        ? await signUpWithEmail(email, password, fullName)
+        : await signInWithEmail(email, password);
         
       console.log('Direct auth result:', { hasData: !!data, hasError: !!error });
 
@@ -162,7 +231,7 @@ export default function CitizenAuth() {
         console.log('Sign in successful:', data);
         Alert.alert('Welcome!', 'You have successfully signed in. Redirecting to your dashboard...');
         // On successful login, the root layout will handle redirection automatically.
-        // The AuthContext will detect the session change and redirect to (home)
+        // The AuthContext will detect the session change and redirect to appropriate citizen route
       }
     } catch (err: any) {
       console.error('Network or other error:', err);
@@ -192,7 +261,7 @@ export default function CitizenAuth() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.form}>
-          <Text style={styles.title}>{isSignUp ? 'Create Citizen Account' : 'Citizen Login'}</Text>
+          <Text style={styles.title}>{isSignUp ? t('citizenSignUp') : t('citizenAuth')}</Text>
           
           {isSignUp && (
             <View style={styles.testAccountInfo}>
@@ -229,21 +298,21 @@ export default function CitizenAuth() {
                 style={styles.input}
                 onChangeText={setFullName}
                 value={fullName}
-                placeholder="Full Name"
+                placeholder={t('fullName')}
                 autoCapitalize="words"
               />
               <TextInput
                 style={styles.input}
                 onChangeText={setUsername}
                 value={username}
-                placeholder="Unique Username"
+                placeholder={t('username')}
                 autoCapitalize="none"
               />
                <TextInput
                 style={styles.input}
                 onChangeText={setPhoneNumber}
                 value={phoneNumber}
-                placeholder="Phone Number"
+                placeholder={t('phoneNumber')}
                 keyboardType="phone-pad"
               />
             </>
@@ -253,7 +322,7 @@ export default function CitizenAuth() {
             style={styles.input}
             onChangeText={setEmail}
             value={email}
-            placeholder="Email (e.g., name@email.com)"
+            placeholder={t('email')}
             autoCapitalize="none"
             keyboardType="email-address"
           />
@@ -262,7 +331,7 @@ export default function CitizenAuth() {
             onChangeText={setPassword}
             value={password}
             secureTextEntry
-            placeholder="Password"
+            placeholder={t('password')}
             autoCapitalize="none"
           />
 
@@ -270,13 +339,13 @@ export default function CitizenAuth() {
             {loading ? (
               <ActivityIndicator color="#ffffff" />
             ) : (
-              <Text style={styles.buttonText}>{isSignUp ? 'Sign Up' : 'Sign In'}</Text>
+              <Text style={styles.buttonText}>{isSignUp ? t('signUp') : t('signIn')}</Text>
             )}
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)} style={styles.toggleButton}>
             <Text style={styles.toggleText}>
-              {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+              {isSignUp ? t('switchToSignIn') : t('switchToSignUp')}
             </Text>
           </TouchableOpacity>
           
@@ -288,7 +357,7 @@ export default function CitizenAuth() {
           
           <Link href="/" asChild>
              <TouchableOpacity style={styles.backButton}>
-                <Text style={styles.backButtonText}>Back to role selection</Text>
+                <Text style={styles.backButtonText}>{t('backToWelcome')}</Text>
              </TouchableOpacity>
           </Link>
           </View>
